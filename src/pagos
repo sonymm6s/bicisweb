@@ -1,0 +1,51 @@
+import stripe
+from flask import request, jsonify
+from flask import Flask, jsonify
+
+stripe.api_key = "sk_test_51Q7v3ZK079BGMUU5wcvMrK6thDpFcqDrEIlh9HU5l1BHn4XfVqInCXJSiKWkEHyb6gsPVubaBm0hLZAk2OJ1clEt00ZBaOCzWK"
+
+app = Flask(__name__)
+
+@app.route('/create-payment-intent/<int:bike_id>', methods=['POST'])
+def create_payment_intent(bike_id):
+    bike = bicycles.get(bike_id)
+    if not bike or bike["sold"]:
+        return jsonify({"error": "Bicycle not available"}), 400
+
+    try:
+        intent = stripe.PaymentIntent.create(
+            amount=bike["price"],
+            currency="usd",
+            payment_method_types=["card"],
+        )
+        return jsonify({"client_secret": intent.client_secret})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+bicycles = {
+    1: {"price": 5000, "lock_code": "1234", "location": "Calle Falsa 123", "sold": False},
+    2: {"price": 7500, "lock_code": "5678", "location": "Av. Siempreviva 742", "sold": False},
+}
+
+@app.route('/bicycles', methods=['GET'])
+def list_bicycles():
+    available_bicycles = {bike_id: data for bike_id, data in bicycles.items() if not data["sold"]}
+    return jsonify(available_bicycles)
+
+if __name__ == "__main__":
+    app.run(port=5000)
+
+@app.route('/reveal-info/<int:bike_id>', methods=['GET'])
+def reveal_info(bike_id):
+    bike = bicycles.get(bike_id)
+    if not bike or bike["sold"]:
+        return jsonify({"error": "Bicycle not available or already sold"}), 400
+
+    if bike["sold"]:
+        return jsonify({
+            "lock_code": bike["lock_code"],
+            "location": bike["location"]
+        })
+    else:
+        return jsonify({"error": "Payment not confirmed"}), 400
+
+
