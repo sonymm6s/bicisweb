@@ -2,13 +2,19 @@
 from supabase_client import supabase
 
 # Función para insertar un nuevo pago en la tabla 'payment'
-def insert_payment(user_id, amount, payment_method, status):
+def insert_payment(transaction_id, amount, payment_method, payment_status):
     try:
-        response = supabase.table('payment').insert([{
-            'user_id': user_id,
+        # Verificar que el estado es un valor permitido
+        if payment_status not in ['pending', 'approved', 'failed']:
+            print(f"Error: El estado '{payment_status}' no es válido.")
+            return None
+
+        # Insertar el pago en la tabla 'payments'
+        response = supabase.table('payments').insert([{
+            'transaction_id': transaction_id,
             'amount': amount,
             'payment_method': payment_method,
-            'status': status
+            'payment_status': payment_status
         }]).execute()
 
         if response.data:
@@ -39,8 +45,14 @@ def get_payments_by_user(user_id):
 # Función para actualizar el estado de un pago
 def update_payment_status(payment_id, new_status):
     try:
-        response = supabase.table('payment').update({
-            'status': new_status
+        # Verificar que el nuevo estado es un valor permitido
+        if new_status not in ['pending', 'approved', 'failed']:
+            print(f"Error: El estado '{new_status}' no es válido.")
+            return None
+
+        # Actualizar el estado del pago en la tabla 'payments'
+        response = supabase.table('payments').update({
+            'payment_status': new_status
         }).eq('payment_id', payment_id).execute()
 
         if response.data:
@@ -51,19 +63,4 @@ def update_payment_status(payment_id, new_status):
             return None
     except Exception as e:
         print(f"Error al actualizar el estado del pago: {e}")
-        return None
-
-# Función para eliminar un pago
-def delete_payment(payment_id):
-    try:
-        response = supabase.table('payment').delete().eq('payment_id', payment_id).execute()
-
-        if response.data:
-            print('Pago eliminado con éxito:', response.data)
-            return response.data
-        else:
-            print('Error al eliminar el pago:', response)
-            return None
-    except Exception as e:
-        print(f"Error al eliminar el pago: {e}")
         return None

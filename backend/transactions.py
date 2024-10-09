@@ -2,15 +2,19 @@
 from supabase_client import supabase
 
 # Función para insertar una nueva transacción
-def insert_transaction(payment_id, transaction_date, amount, status):
+def insert_transaction(transaction_id, add_id, user_id, date, price, status):
     try:
+        # Insertar la transacción en la tabla 'transactions'
         response = supabase.table('transactions').insert([{
-            'payment_id': payment_id,
-            'transaction_date': transaction_date,
-            'amount': amount,
-            'status': status
+            'transaction_id': transaction_id,  # ID único de la transacción
+            'add_id': add_id,                  # ID del anuncio (add_id)
+            'user_id': user_id,                # ID del usuario (user_id)
+            'date': date,                      # Fecha de la transacción
+            'price': price,                    # Precio de la transacción
+            'status': status                   # Estado de la transacción
         }]).execute()
 
+        # Verificar si la transacción fue creada exitosamente
         if response.data:
             print('Transacción creada con éxito:', response.data)
             return response.data
