@@ -41,3 +41,27 @@ def update_transaction_status(transaction_id, new_status):
     except Exception as e:
         print(f"Error al actualizar el estado de la transacción: {e}")
         return None
+
+# Función para verificar el pago y obtener el código del candado
+def get_lock_code_for_user(user_id, add_id):
+    try:
+        # Verificar si existe un pago completado para esta transacción y este usuario
+        response = supabase.table('payments').select('*').join(
+            'transactions', 'payments.transaction_id', 'transactions.transaction_id'
+        ).eq('transactions.add_id', add_id).eq('transactions.user_id', user_id).eq('payments.payment_status', 'completed').execute()
+
+        # Si el pago está completado, obtener el código del candado
+        if response.data:
+            # Obtener el código del candado desde la tabla `adds`
+            lock_code_response = supabase.table('adds').select('lock_code').eq('add_id', add_id).execute()
+            
+            if lock_code_response.data:
+                return lock_code_response.data[0]['lock_code']  # Devolver el código del candado
+            else:
+                return None
+        else:
+            print("No se encontró un pago completado para este anuncio.")
+            return None
+    except Exception as e:
+        print(f"Error al obtener el código del candado: {e}")
+        return None

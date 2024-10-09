@@ -64,3 +64,17 @@ def update_payment_status(payment_id, new_status):
     except Exception as e:
         print(f"Error al actualizar el estado del pago: {e}")
         return None
+
+# Función para actualizar el estado del pago cuando se complete
+def complete_payment(payment_id):
+    response = supabase.table('payments').update({
+        'payment_status': 'completed'
+    }).eq('payment_id', payment_id).execute()
+
+    if response.data:
+        print(f"Pago {payment_id} actualizado a 'completed'")
+        return True
+    else:
+        print(f"Error al actualizar el pago {payment_id}")
+        return False
+
