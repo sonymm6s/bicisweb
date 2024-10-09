@@ -1,51 +1,69 @@
+import datetime
 import stripe
-from flask import request, jsonify
-from flask import Flask, jsonify
+from flask import Flask, request, jsonify
+from supabase import create_client, Client
 
 stripe.api_key = "sk_test_51Q7v3ZK079BGMUU5wcvMrK6thDpFcqDrEIlh9HU5l1BHn4XfVqInCXJSiKWkEHyb6gsPVubaBm0hLZAk2OJ1clEt00ZBaOCzWK"
+
+# Conectar a Supabase
+url = "https://hdnnlvszpzxjkuoenadf.supabase.co"
+key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhkbm5sdnN6cHp4amt1b2VuYWRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mjg0NjE2NTAsImV4cCI6MjA0NDAzNzY1MH0.hgC4-xNUEP0xlO9nvFrNuDVPud2X_1Gdie96F-bhTRQ"
+supabase: Client = create_client(url, key)
 
 app = Flask(__name__)
 
 @app.route('/create-payment-intent/<int:bike_id>', methods=['POST'])
 def create_payment_intent(bike_id):
-    bike = bicycles.get(bike_id)
-    if not bike or bike["sold"]:
+    # Obtener la bicicleta de Supabase
+    response = supabase.table('adds').select('*').eq('id', add_id).execute()
+    bike = response.data[0] if response.data else None
+    
+    if not bike or bike['sold']:
         return jsonify({"error": "Bicycle not available"}), 400
-
+    
     try:
+        # Crear PaymentIntent con Stripe
         intent = stripe.PaymentIntent.create(
-            amount=bike["price"],
+            amount=bike['price'],
             currency="usd",
             payment_method_types=["card"],
         )
         return jsonify({"client_secret": intent.client_secret})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-bicycles = {
-    1: {"price": 5000, "lock_code": "1234", "location": "Calle Falsa 123", "sold": False},
-    2: {"price": 7500, "lock_code": "5678", "location": "Av. Siempreviva 742", "sold": False},
-}
+    
+@app.route('/confirm-payment/<int:add_id>', methods=['POST'])
+def confirm_payment(bike_id):
+    data = request.json
+    payment_intent_id = data.get('payment_intent_id')
+    buyer_email = data.get('email')
 
-@app.route('/bicycles', methods=['GET'])
-def list_bicycles():
-    available_bicycles = {bike_id: data for bike_id, data in bicycles.items() if not data["sold"]}
-    return jsonify(available_bicycles)
+    if not payment_intent_id or not buyer_email:
+        return jsonify({"error": "Missing payment intent ID or buyer email"}), 400
 
-if __name__ == "__main__":
-    app.run(port=5000)
+    try:
+        # Verificar el estado del PaymentIntent
+        intent = stripe.PaymentIntent.retrieve(payment_intent_id)
+        
+        if intent.status == 'succeeded':
+            # El pago fue exitoso, registrar la transacción en Supabase
+            response = supabase.table('transactions').insert({
+                'bike_id': bike_id,
+                'buyer_email': buyer_email,
+                'payment_id': payment_intent_id,
+                'amount': intent.amount,
+                'purchase_date': datetime.now()
+            }).execute()
 
-@app.route('/reveal-info/<int:bike_id>', methods=['GET'])
-def reveal_info(bike_id):
-    bike = bicycles.get(bike_id)
-    if not bike or bike["sold"]:
-        return jsonify({"error": "Bicycle not available or already sold"}), 400
+            # Marcar la bicicleta como vendida
+            supabase.table('bicycles').update({'sold': True}).eq('id', bike_id).execute()
 
-    if bike["sold"]:
-        return jsonify({
-            "lock_code": bike["lock_code"],
-            "location": bike["location"]
-        })
-    else:
-        return jsonify({"error": "Payment not confirmed"}), 400
+            return jsonify({"status": "Payment confirmed and bicycle marked as sold"})
+        else:
+            return jsonify({"error": "Payment not confirmed"}), 400
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 
